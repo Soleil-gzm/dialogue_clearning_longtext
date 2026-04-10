@@ -1,0 +1,16 @@
+# configs/config_bucket_turn0.yaml
+dataset_path: __INPUT_FILE__
+export_path: __OUTPUT_FILE__
+text_keys: user_input          # 重点清洗输出，而非输入
+np: 16
+skip_op_error: true
+open_tracer: true
+trace_num: 1000
+
+process:
+  - whitespace_normalization_mapper:
+      text_keys: 'user_input'
+  - text_length_filter:
+      text_keys: 'user_input'
+      min_len: 5
+      max_len: 10

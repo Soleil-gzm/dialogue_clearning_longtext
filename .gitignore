@@ -1,1 +1,26 @@
-node_modules/
+# IDE 配置
+.vscode/
+
+# 数据文件和输出结果（根据你的需求调整）
+data/
+outputs/
+*.pyc
+__pycache__/
+samples/
+progress.txt
+old_scripts/
+bucketed/
+cleaned_jsonl/
+cleaning_reports/
+trace_output/
+final_training_data/
+stats/
+
+
+# 其他临时文件
+*.log
+.DS_Store
+models/
+scripts_old/
+
+samples/

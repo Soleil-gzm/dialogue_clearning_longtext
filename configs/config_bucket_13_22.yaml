@@ -1,0 +1,39 @@
+dataset_path: __INPUT_FILE__
+export_path: __OUTPUT_FILE__
+text_keys: user_input
+np: 16
+skip_op_error: true
+open_tracer: true
+trace_num: 1000
+
+process:
+  - whitespace_normalization_mapper:
+  - text_length_filter:
+      min_len: 2
+      max_len: 2000
+  - language_id_score_filter:
+      lang: zh
+      min_score: 0.7
+  - document_deduplicator:
+      lowercase: true
+
+  #使用 MD5 哈希进行精确匹配，只有文本完全相同才视为重复
+  - document_deduplicator:                                  # deduplicate text samples using md5 hashing exact matching method
+      lowercase: false                                        # whether to convert text to lower case
+      ignore_non_character: false                             # whether to ignore non-alphabet characters, including whitespaces, digits, and punctuations
+
+    # 过滤包含分期关键词的用户输入
+  - flagged_words_filter:
+      lang: zh
+      max_ratio: 0
+      flagged_words_dir: ./configs/installment_keywords.txt
+      use_words_aug: true
+      text_key: user_input
+      
+  # 可选：过滤包含分期关键词的助手回复
+  - flagged_words_filter:
+      lang: zh
+      max_ratio: 0
+      flagged_words_dir: ./configs/installment_keywords.txt
+      use_words_aug: true
+      text_key: target_output

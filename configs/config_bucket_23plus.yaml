@@ -1,0 +1,13 @@
+dataset_path: __INPUT_FILE__
+export_path: __OUTPUT_FILE__
+text_keys: user_input
+np: 8
+skip_op_error: true
+open_tracer: true
+trace_num: 1000
+
+process:
+  - whitespace_normalization_mapper:
+  - text_length_filter:
+      min_len: 1
+      max_len: 5000

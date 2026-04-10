@@ -1,0 +1,114 @@
+# global parameters
+project_name: 'clean-dialogue'
+# dataset_path: './dialogues_clean.jsonl'
+dataset_path:  __INPUT_FILE__
+export_path: __OUTPUT_FILE__
+np: 16
+text_keys: 'text'
+skip_op_error: true
+open_tracer: true                                          # whether to open the tracer to trace the changes during process. It might take more time when opening tracer
+trace_num: 1000
+trace_keys: ['text']
+
+export_type: 'jsonl'                                        # The export format type. If it's not specified, Data-Juicer will parse from the export_path. The supported types can be found in Exporter._router() for standalone mode and RayExporter._SUPPORTED_FORMATS for ray mode
+export_shard_size: 0                                        # shard size of exported dataset in Byte. In default, it's 0, which means export the whole dataset into only one file. If it's set a positive number, the exported dataset will be split into several dataset shards, and the max size of each shard won't larger than the export_shard_size
+export_in_parallel: false                                   # whether to export the result dataset in parallel to a single file, which usually takes less time. It only works when export_shard_size is 0, and its default number of processes is the same as the argument np. **Notice**: If it's True, sometimes exporting in parallel might require much more time due to the IO blocking, especially for very large datasets. When this happens, False is a better choice, although it takes more time.
+# keep_stats_in_res_ds: false                                 # whether to keep the computed stats in the result dataset. The intermediate fields to store the stats computed by Filters will be removed if it's False. It's False in default.
+# keep_hashes_in_res_ds: false                                # whether to keep the computed hashes in the result dataset. The intermediate fields to store the hashes computed by Deduplicators will be removed if it's False. It's False in default.
+export_extra_args: {}                                       # Other optional arguments for exporting in dict. For example, the key mapping info for exporting the WebDataset format.
+load_dataset_kwargs: {}                                     # extra kwargs passed to datasets.load_dataset(). Useful for format-specific options, e.g. chunksize (JSON), columns (Parquet), delimiter (CSV).
+
+suffixes: []                                                # the suffix of files that will be read. For example: '.txt', 'txt' or ['txt', '.pdf', 'docx']
+turbo: false                                                # Enable Turbo mode to maximize processing speed when batch size is 1.
+use_cache: true                                             # whether to use the cache management of Hugging Face datasets. It might take up lots of disk space when using cache
+ds_cache_dir: null                                          # cache dir for Hugging Face datasets. In default, it\'s the same as the environment variable `HF_DATASETS_CACHE`, whose default value is usually "~/.cache/huggingface/datasets". If this argument is set to a valid path by users, it will override the default cache dir
+open_monitor: true                                          # Whether to open the monitor to trace resource utilization for each OP during data processing. It\'s True in default.
+use_checkpoint: false                                       # whether to use the checkpoint management to save the latest version of dataset to work dir when processing. Rerun the same config will reload the checkpoint and skip ops before it. Cache will be disabled when using checkpoint. If args of ops before the checkpoint are changed, all ops will be rerun from the beginning.
+temp_dir: null                                              # the path to the temp directory to store intermediate caches when cache is disabled, these cache files will be removed on-the-fly. In default, it's None, so the temp dir will be specified by system. NOTICE: you should be caution when setting this argument because it might cause unexpected program behaviors when this path is set to an unsafe directory.
+op_list_to_trace: []                                        # only ops in this list will be traced by tracer. If it's empty, all ops will be traced. Only available when tracer is opened.
+op_fusion: false                                            # whether to fuse operators that share the same intermediate variables automatically. Op fusion might reduce the memory requirements slightly but speed up the whole process.
+fusion_strategy: 'probe'                                    # OP fusion strategy. Support ['greedy', 'probe'] now. 'greedy' means keep the basic OP order and put the fused OP to the last of each fused OP group. 'probe' means Data-Juicer will probe the running speed for each OP at the beginning and reorder the OPs and fused OPs according to their probed speed (fast to slow). It's 'probe' in default.
+cache_compress: null                                        # the compression method of the cache file, which can be specified in ['gzip', 'zstd', 'lz4']. If this parameter is None, the cache file will not be compressed. We recommend you turn on this argument when your input dataset is larger than tens of GB and your disk space is not enough.
+adaptive_batch_size: false   
+
+
+process:
+  #使用 MD5 哈希进行精确匹配，只有文本完全相同才视为重复
+  - document_deduplicator:                                  # deduplicate text samples using md5 hashing exact matching method
+      lowercase: false                                        # whether to convert text to lower case
+      ignore_non_character: false                             # whether to ignore non-alphabet characters, including whitespaces, digits, and punctuations
+
+  #使用 MinHash 算法识别语义相似的文本
+  - document_minhash_deduplicator:                          # deduplicate text samples using MinHash-LSH method
+      tokenization: character                                     # tokenization method for text. One of [space, punctuation, character, sentencepiece]
+      window_size: 7                                          # window size of shingling
+      num_permutations: 64                                   # number of permutations in minhash computing
+      jaccard_threshold: 0.9                               # the min jaccard similarity threshold in near-duplicate detection. When the jaccard similarity of two sample texts is >= this threshold, they are regarded as similar samples and this op will only keep one of them after deduplication
+      lowercase: true                                         # whether to convert text to lower case
+      num_bands: null                                         # number of bands in LSH. Default it's None, and it will be determined by an optimal params computation algorithm by minimize the weighted sum of probs of False Positives and False Negatives
+      num_rows_per_band: null                                 # number of rows in each band in LSH. Default it's None, and it will be determined by an optimal params computation algorithm
+    #   ignore_pattern: r"客户：|专员："                                    # whether to ignore sub-strings with specific pattern when computing simhash.
+      tokenizer_model: null                                   # path for the sentencepiece model, used for sentencepiece tokenization.
+  
+#   #删除单条数据内部重复的句子
+#   - remove_repeat_sentences_mapper:                         # remove repeat sentences in text samples.
+#      lowercase: false                                        # whether to convert sample text to lower case
+#      ignore_special_character: true                          # whether to ignore special characters when judging repeated sentences. Special characters are all characters except Chinese characters, letters and numbers
+#      min_repeat_sentence_length: 2                           # sentences shorter than this length will not be deduplicated. If ignore_special_character is set to True, then special characters are not included in this length                       # remove characters specified by users
+  
+  - document_simhash_deduplicator:                          # deduplicate text samples using SimHash-LSH method
+      tokenization: character                                 # tokenization method for text. One of [space, punctuation, character]
+      window_size: 7                                         # window size of shingling
+      num_blocks: 3                                          # number of blocks in SimHash computing
+      hamming_distance: 12                                    # the max hamming distance to regard 2 samples as similar enough pair. Should be less than num_blocks always
+      lowercase: false                                        # whether to convert text to lower case
+      # ignore_pattern: r"[，。！？、\s]|客户：|专员：|d+"      # whether to ignore sub-strings with specific pattern when computing simhash.
+      ignore_pattern: r"客户：|专员："
+
+#   # F
+#   # Filter ops
+#   - character_repetition_filter:                            # filter text with the character repetition ratio out of specific range
+#       rep_len: 5                                              # repetition length for char-level n-gram
+#       min_ratio: 0.0                                          # the min ratio of filter range
+#       max_ratio: 0.2                                          # the max ratio of filter range
+# #   - perplexity_filter:                                      # filter text with perplexity score out of specific range
+#       lang: zh                                                # compute perplexity in what language
+#       max_ppl: 7000                                           # the max perplexity score to filter text
+#   - language_id_score_filter:                               # filter text in specific language with language scores larger than a specific max value
+#       lang: zh                                                # keep text in what language
+#       min_score: 0.5     
+#     #   ignore_pattern: r"客户：|专员："                                    # whether to ignore sub-strings with specific pattern when computing simhash.
+                                         
+
+# ilter ops
+  - character_repetition_filter:                            # filter text with the character repetition ratio out of specific range
+      rep_len: 10                                            # repetition length for char-level n-gram
+      min_ratio: 0.0                                          # the min ratio of filter range
+      max_ratio: 0.5                                         # the max ratio of filter range
+#   - perplexity_filter:                                      # filter text with perplexity score out of specific range
+      lang: zh                                                # compute perplexity in what language
+      max_ppl: 7000                                           # the max perplexity score to filter text
+  - language_id_score_filter:                               # filter text in specific language with language scores larger than a specific max value
+      lang: zh                                                # keep text in what language
+      min_score: 0.5     
+    #   ignore_pattern: r"客户：|专员："                                    # whether to ignore sub-strings with specific pattern when computing simhash.
+  
+  #过滤特定词
+  - flagged_words_filter:
+      lang: zh
+      tokenization: False
+      min_ratio: 0.0
+      max_ratio: 0.001
+      flagged_words_dir: ./configs/flagged_words/flagged_words_installment.txt
+      use_words_aug: True
+  
+  # 移除,仅保留重复率在0.0到0.4之间的样本
+  - character_repetition_filter:
+      rep_len: 10
+      min_ratio: 0.0
+      max_ratio: 0.5
+  # 计算文本样本的困惑度
+  - perplexity_filter:
+      lang : zh
+      min_ppl: 0
+      max_ppl: 1500

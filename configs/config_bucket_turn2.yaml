@@ -1,0 +1,50 @@
+dataset_path: __INPUT_FILE__
+export_path: __OUTPUT_FILE__
+text_keys: user_input
+np: 16
+skip_op_error: true
+open_tracer: true
+trace_num: 10000
+
+process:
+  - whitespace_normalization_mapper:
+  - text_length_filter:
+      min_len: 50
+      max_len: 150
+  - language_id_score_filter:
+      lang: zh
+      min_score: 0.9
+  - document_deduplicator:
+      lowercase: true
+      ignore_non_character: true
+
+   #使用 MD5 哈希进行精确匹配，只有文本完全相同才视为重复
+  - document_deduplicator:                                  # deduplicate text samples using md5 hashing exact matching method
+      lowercase: false                                        # whether to convert text to lower case
+      ignore_non_character: false                             # whether to ignore non-alphabet characters, including whitespaces, digits, and punctuations
+
+  #使用 MinHash 算法识别语义相似的文本
+  - document_minhash_deduplicator:                          # deduplicate text samples using MinHash-LSH method
+      tokenization: character                                     # tokenization method for text. One of [space, punctuation, character, sentencepiece]
+      window_size: 7                                          # window size of shingling
+      num_permutations: 64                                   # number of permutations in minhash computing
+      jaccard_threshold: 0.6                               # the min jaccard similarity threshold in near-duplicate detection. When the jaccard similarity of two sample texts is >= this threshold, they are regarded as similar samples and this op will only keep one of them after deduplication
+      lowercase: true                                         # whether to convert text to lower case
+      num_bands: null                                         # number of bands in LSH. Default it's None, and it will be determined by an optimal params computation algorithm by minimize the weighted sum of probs of False Positives and False Negatives
+      num_rows_per_band: null                                 # number of rows in each band in LSH. Default it's None, and it will be determined by an optimal params computation algorithm
+  
+    # 过滤包含分期关键词的用户输入
+  - flagged_words_filter:
+      lang: zh
+      max_ratio: 0
+      flagged_words_dir: ./configs/installment_keywords.txt
+      use_words_aug: true
+      text_key: user_input
+      
+  # 可选：过滤包含分期关键词的助手回复
+  - flagged_words_filter:
+      lang: zh
+      max_ratio: 0
+      flagged_words_dir: ./configs/installment_keywords.txt
+      use_words_aug: true
+      text_key: target_output
